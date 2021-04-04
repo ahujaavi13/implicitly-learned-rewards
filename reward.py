@@ -65,10 +65,10 @@ class InternalReward:
             for t in range(T):
                 inputs = (policy, self.p_reward, self.p_gamma)
                 outputs = (log_prob[t], inner_rewards[t], gammas[t])
-                retain_graphs = (True, True)
+                retain_graphs = (True, True, True)
 
                 # Calculate gradients of outputs w.r.t inputs
-                opt_grads[t], r_phi_grads[t] = calc_grads(outputs, inputs, retain_graphs)
+                opt_grads[t], r_phi_grads[t], p_gamma_grads[t] = calc_grads(outputs, inputs, retain_graphs)
 
                 psi[t] = torch.sum(opt_grads, dim=0)  # num_params_policy
                 for _t in range(t, T):  # TODO: Vectorize
