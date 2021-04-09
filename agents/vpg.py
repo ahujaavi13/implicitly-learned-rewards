@@ -25,6 +25,7 @@ class VanillaPolicyGradient:
 
         # Placeholder only
         gamma = p_gamma(torch.ones_like(torch.tensor(states).float()))
+        # gamma = p_gamma(torch.ones((len(states), 1)).float())
 
         return r_phi, gamma
 

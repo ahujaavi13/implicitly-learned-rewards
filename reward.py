@@ -1,5 +1,4 @@
-import torch
-import numpy as np
+from collections import deque
 
 from network.reward_network import RewardNetwork
 from network.gamma_network import GammaNetwork
@@ -17,6 +16,8 @@ class InternalReward:
         self.p_reward = RewardNetwork(num_states=self.num_states, num_actions=self.num_actions, layers=[])
         self.p_gamma = GammaNetwork(val=self.num_states, layers=[]).to(self.device)
         self.optimizer = torch.optim.SGD(self.p_reward.parameters(), lr=self.learning_rate)
+        self.gamma_optimizer = torch.optim.SGD(self.p_gamma.parameters(), lr=self.learning_rate)
+        self.trajectories = deque(maxlen=self.T3)
 
     def get_reward_network(self):
         return self.p_reward
@@ -26,6 +27,14 @@ class InternalReward:
 
     def get_gamma_network(self):
         return self.p_gamma
+
+    def get_one_trajectory(self):
+        if len(self.trajectories) > 0:
+            return self.trajectories.popleft()
+        return None
+
+    def clear_trajectories(self):
+        self.trajectories = deque(maxlen=self.T3)
 
     def learn_reward(self, env, agent, policy, p_reward, p_gamma, max_trajectory_len):
 
@@ -41,7 +50,7 @@ class InternalReward:
         A = torch.zeros((1, num_params_reward), dtype=torch.float64)  # 1, num_params_reward
         b = torch.zeros((1, num_params_gamma), dtype=torch.float64)  # 1, num_params_gamma
 
-        for time in range(self.T3):
+        for t3 in range(self.T3 + 1):
 
             states, actions, inner_rewards, outer_rewards, gammas = \
                 generate_trajectory(env=env, agent=agent, policy=policy, p_reward=p_reward,
@@ -76,24 +85,30 @@ class InternalReward:
 
             for t in range(T):
                 cum_r_phi_grads[t] = torch.sum(r_phi_grads[t:].T * cum_p_gammas[t][t:], dim=1)
-                cum_p_gamma_grads[t] = torch.sum(p_gamma_grads[t:].T * cum_p_gammas[t][t:], dim=1)
+                cum_p_gamma_grads[t] = torch.sum(p_gamma_grads[t:].T * cum_p_gammas[t][t:] * t, dim=1)
                 cum_inner_rewards[t] = torch.sum(inner_rewards[t:])
                 cum_log_probs[t] = torch.sum(log_prob[t:])
 
-            c += torch.sum(psi.T * torch.tensor(outer_rewards), dim=1).unsqueeze(0)  # 1, num_params_policy
-            H += torch.sum((psi.T * psi.T) * inner_rewards, dim=1).unsqueeze(0).detach()  # 1, num_params_policy
+            psi = psi.T
+            c += torch.sum(psi * torch.tensor(outer_rewards), dim=1).unsqueeze(0)  # 1, num_params_policy
+            H += torch.sum((psi * psi) * inner_rewards, dim=1).unsqueeze(0).detach()  # 1, num_params_policy
             A += torch.sum(opt_grads * cum_r_phi_grads, dim=0).unsqueeze(0)  # 1, num_params_reward
             _b = torch.sum(cum_p_gamma_grads.squeeze() * (cum_inner_rewards - 1. * cum_log_probs), dim=0)
             b += torch.sum(opt_grads * _b.unsqueeze(0).T)
 
+            self.trajectories.append((states, actions, inner_rewards, outer_rewards, gammas, log_prob))
+
         c = c / self.T3
-        H = 1 / (H / self.T3) if torch.sum(H) != 0 else 1
+        H = 1 / (H / self.T3) if torch.sum(H) != 0 else torch.ones_like(H)
         A = A / self.T3
         f_grads = -(c * H * A).float()
-
+        f_gamma_grads = -(torch.mm(c, H.T) * b - self.p_gamma.mlp[0][0].weight).float()
         self.optimizer.zero_grad()
+        self.gamma_optimizer.zero_grad()
         self.p_reward.mlp[0][0].weight.grad = f_grads
+        self.p_gamma.mlp[0][0].weight.grad = f_gamma_grads
         self.optimizer.step()
+        # self.gamma_optimizer.step()
 
     def eval(self):
         states, actions = [], []
