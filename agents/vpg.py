@@ -6,12 +6,16 @@ from utils.common import one_hot_single_value, one_hot_two_value
 
 
 class VanillaPolicyGradient:
-    def __init__(self, num_states, num_actions):
+    def __init__(self, num_states, num_actions, is_state_continuous):
         self.num_states = num_states
         self.num_actions = num_actions
+        self.is_state_continuous = is_state_continuous
 
     def get_action(self, current_state, policy):
-        state = one_hot_single_value(cur_val=current_state, total_vals=self.num_states)
+        if not self.is_state_continuous:
+            state = one_hot_single_value(cur_val=current_state, total_vals=self.num_states)
+        else:
+            state = current_state
         prob = policy(torch.tensor(state).unsqueeze(0).float())
         sampler = Categorical(prob)
         action = sampler.sample()
@@ -19,9 +23,11 @@ class VanillaPolicyGradient:
         return state, action
 
     def get_reward_gamma(self, states, actions, p_reward, p_gamma):
-        s_action = one_hot_two_value(cur_val_1=states, cur_val_2=actions,
-                                     total_vals_1=self.num_states, total_vals_2=self.num_actions)
+        s_action = torch.Tensor(states)
+
+        a_indices = torch.cat([*actions], dim=-1)
         r_phi = p_reward(s_action.float())
+        r_phi = r_phi[torch.arange(r_phi.size(0)), a_indices]
 
         # Placeholder only
         gamma = p_gamma(torch.ones_like(torch.tensor(states).float()))

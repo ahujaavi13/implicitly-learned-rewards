@@ -1,9 +1,12 @@
 from collections import deque
 
+import torch
+
 from network.reward_network import RewardNetwork
 from network.gamma_network import GammaNetwork
 
 from utils.common import *
+import random
 
 
 class InternalReward:
@@ -14,10 +17,10 @@ class InternalReward:
         self.device = device
         self.T3 = T3
         self.p_reward = RewardNetwork(num_states=self.num_states, num_actions=self.num_actions, layers=[])
-        self.p_gamma = GammaNetwork(val=self.num_states, layers=[]).to(self.device)
+        self.p_gamma = GammaNetwork(val=self.num_states, layers=[])
         self.optimizer = torch.optim.SGD(self.p_reward.parameters(), lr=self.learning_rate)
         self.gamma_optimizer = torch.optim.SGD(self.p_gamma.parameters(), lr=self.learning_rate)
-        self.trajectories = deque(maxlen=self.T3)
+        self.D = deque(maxlen=100000)
 
     def get_reward_network(self):
         return self.p_reward
@@ -28,13 +31,16 @@ class InternalReward:
     def get_gamma_network(self):
         return self.p_gamma
 
+    def get_one_trajectory_uniform(self):
+        return random.choice(self.D)
+
     def get_one_trajectory(self):
-        if len(self.trajectories) > 0:
-            return self.trajectories.popleft()
+        if len(self.D) > 0:
+            return self.D.popleft()
         return None
 
     def clear_trajectories(self):
-        self.trajectories = deque(maxlen=self.T3)
+        self.D = deque(maxlen=self.T3)
 
     def learn_reward(self, env, agent, policy, p_reward, p_gamma, max_trajectory_len):
 
@@ -93,20 +99,22 @@ class InternalReward:
             c += torch.sum(psi * torch.tensor(outer_rewards), dim=1).unsqueeze(0)  # 1, num_params_policy
             H += torch.sum((psi * psi) * inner_rewards, dim=1).unsqueeze(0).detach()  # 1, num_params_policy
             A += torch.sum(opt_grads * cum_r_phi_grads, dim=0).unsqueeze(0)  # 1, num_params_reward
-            _b = torch.sum(cum_p_gamma_grads.squeeze() * (cum_inner_rewards - 1. * cum_log_probs), dim=0)
-            b += torch.sum(opt_grads * _b.unsqueeze(0).T)
+            # _b = torch.sum(cum_p_gamma_grads.squeeze() * (cum_inner_rewards - 1. * cum_log_probs), dim=0)
+            # b += torch.sum(opt_grads * _b.unsqueeze(0).T)
 
-            self.trajectories.append((states, actions, inner_rewards, outer_rewards, gammas, log_prob))
+            self.D.append((states, actions, inner_rewards, outer_rewards, gammas, log_prob))
 
         c = c / self.T3
         H = 1 / (H / self.T3) if torch.sum(H) != 0 else torch.ones_like(H)
         A = A / self.T3
-        f_grads = -(c * H * A).float()
-        f_gamma_grads = -(torch.mm(c, H.T) * b - self.p_gamma.mlp[0][0].weight).float()
+        x, y = self.p_reward.mlp[0][0].weight.shape
+        f_grads = -(c * H * A).float().view(x, y)
+
+        # f_gamma_grads = -(torch.mm(c, H.T) * b - self.p_gamma.mlp[0][0].weight).float()
         self.optimizer.zero_grad()
         self.gamma_optimizer.zero_grad()
         self.p_reward.mlp[0][0].weight.grad = f_grads
-        self.p_gamma.mlp[0][0].weight.grad = f_gamma_grads
+        # self.p_gamma.mlp[0][0].weight.grad = f_gamma_grads
         self.optimizer.step()
         # self.gamma_optimizer.step()
 
@@ -117,10 +125,10 @@ class InternalReward:
                 states.append(one_hot_single_value(s, self.num_states))
                 actions.append(torch.tensor(a))
 
-        s_action = one_hot_two_value(cur_val_1=states, cur_val_2=actions,
-                                     total_vals_1=self.num_states, total_vals_2=self.num_actions)
-
         with torch.no_grad():
-            inner_rewards = self.p_reward(s_action.float())
+            # inner_rewards = self.p_reward(s_action.float())
+            inner_rewards = self.p_reward(torch.tensor(states).float())
+            a_indices = torch.stack(actions)
+            inner_rewards = inner_rewards[torch.arange(inner_rewards.size(0)), a_indices]
 
         return clip_tensor(inner_rewards)

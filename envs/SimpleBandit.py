@@ -11,7 +11,7 @@ class SimpleBandit(gym.Env):
         self.max_trajectory_len = max_trajectory_len
         self.end_states = (self.num_states - 1,)
         self.state_transition = torch.vstack(self.num_actions * [torch.arange(start=1, end=self.num_states)]).T
-        self.rewards = torch.full((self.num_states, self.num_actions), fill_value=-1.)
+        self.rewards = torch.full((self.num_states, self.num_actions), fill_value=0.)
 
         self.env_state = {
             'observation': torch.tensor([self.start_state]),
@@ -51,6 +51,8 @@ class SimpleBandit(gym.Env):
         self.action = None
         self.timestep = 0
         self.done = False
+
+        return None
 
     def get_env_state(self):
         return self.env_state.values()

@@ -9,7 +9,8 @@ class RewardNetwork(nn.Module):
         self.num_states = num_states
         self.num_actions = num_actions
 
-        self.mlp = MLP([num_states * num_actions] + layers + [1], activation=False)
+        # self.mlp = MLP([num_states * num_actions] + layers + [1], activation=False)
+        self.mlp = MLP([num_states] + layers + [num_actions], activation=False)
         self.apply(init_weights_zero)
 
     def forward(self, s_actions):

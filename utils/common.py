@@ -29,8 +29,8 @@ def generate_trajectory(env, agent, policy, p_reward, p_gamma, max_trajectory_le
     """Generate trajectories"""
     states, actions = [], []
     inner_rewards, outer_rewards = [], []
-    env.reset()
-
+    _ = env.reset()
+    env.render()
     state, outer_reward, done = env.get_env_state()
     state_one_hot, action = agent.get_action(current_state=state, policy=policy)
 
@@ -39,6 +39,7 @@ def generate_trajectory(env, agent, policy, p_reward, p_gamma, max_trajectory_le
     outer_rewards.append(outer_reward)
 
     for t in range(max_trajectory_len):
+        env.render()
         state, outer_reward, done = env.step(action.item())
         state_one_hot, action = agent.get_action(current_state=state, policy=policy)
 
