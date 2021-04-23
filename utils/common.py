@@ -74,10 +74,7 @@ def calc_grads(outputs, inputs, retain_graphs):
 
 
 def create_dir_and_save(model, parent_dir, filename):
-    running_directory = './'
-    for folder in parent_dir.split('/'):
-        running_directory += '/' + folder
-        if not os.path.exists(running_directory):
-            os.mkdir(running_directory)
+    if not os.path.exists(parent_dir):
+        os.makedirs(parent_dir)
 
     torch.save(model.state_dict(), parent_dir + filename)
