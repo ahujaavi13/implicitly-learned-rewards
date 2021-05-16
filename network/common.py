@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 
-torch.manual_seed(42)
-
 
 def MLP(layers, activation=True, bias=False):
     """Returns MLP block of depth = len(layers)-1. If activation is false, "layers" is ignored
@@ -11,7 +9,7 @@ def MLP(layers, activation=True, bias=False):
     if activation:
         return nn.Sequential(
             *[nn.Sequential(nn.Linear(layers[i - 1], layers[i], bias=bias),
-                            nn.LeakyReLU(negative_slope=0.01)) for i in range(1, len(layers))]
+                            nn.LeakyReLU(negative_slope=-10.0)) for i in range(1, len(layers))]
         )
     else:
         return nn.Sequential(

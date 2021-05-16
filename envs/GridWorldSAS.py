@@ -3,7 +3,18 @@ import numpy as np
 import matplotlib.pyplot  as plt
 from matplotlib.patches import Rectangle, Circle, Arrow
 from matplotlib.ticker import NullLocator
-from utils.utils import Space
+
+
+class Space:
+    def __init__(self, low=(0,), high=(1,), dtype=np.uint8, size=-1):
+        if size == -1:
+            self.shape = np.shape(low)
+        else:
+            self.shape = (size,)
+        self.low = np.array(low)
+        self.high = np.array(high)
+        self.dtype = dtype
+        self.n = len(self.low)
 
 
 class Gridworld_SAS(object):
@@ -46,6 +57,7 @@ class Gridworld_SAS(object):
         self.lidar_angles = list(zip(np.cos(self.angles), np.sin(self.angles)))
         self.static_obstacles = self.get_static_obstacles()
 
+        self.reward_range = (-0.05, 100)
         if debug:
             self.heatmap_scale = 99
             self.heatmap = np.zeros((self.heatmap_scale + 1, self.heatmap_scale + 1))
@@ -157,7 +169,6 @@ class Gridworld_SAS(object):
 
     def step(self, action):
         assert self.valid_actions[action]
-
         self.steps_taken += 1
         reward = 0
 
@@ -165,7 +176,7 @@ class Gridworld_SAS(object):
         # Terminal state has a Self-loop and a 0 reward
         term = self.is_terminal()
         if term:
-            return self.curr_state, 0, term
+            return self.curr_state, 0, term, None
 
         motion = self.motions[action]  # Table look up for the impact/effect of the selected action
         reward += self.step_reward
@@ -211,7 +222,7 @@ class Gridworld_SAS(object):
             #     mid *= self.heatmap_scale
             #     self.heatmap[min(int(mid[1]), 99)+1, min(int(mid[0]), 99)+1] = 1
 
-        return self.curr_state.copy(), reward, self.is_terminal()
+        return self.curr_state.copy(), reward, self.is_terminal(), None
 
     def make_state(self):
         x, y = self.curr_pos
@@ -321,6 +332,7 @@ class Gridworld_SAS(object):
         if self.in_region(self.curr_pos, self.G1):
             return 1
         elif self.steps_taken >= self.max_steps:
+
             return 1
         else:
             return 0

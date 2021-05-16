@@ -1,0 +1,19 @@
+# Training Config
+reuse_trajectories: True
+env: SimpleBandit
+freeze_gamma: True
+
+# Hyperparams
+T1: 100
+T2: 100
+T3: 50
+policy_lr: 1e-2
+reward_lr: 1e-2
+seed: 42
+
+# Policy and Reward/Value Network
+layers: None
+activation: False
+
+# Used only for Simple Bandits
+max_trajectory_len: 20

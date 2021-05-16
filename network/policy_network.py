@@ -12,7 +12,7 @@ class PolicyNetwork(nn.Module):
         self.num_actions = num_actions
 
         self.mlp = MLP([num_states] + layers + [num_actions], activation=activation)
-        self.apply(init_weights_zero)
+        self.reset()
 
     def forward(self, obs):
         """Forward"""
@@ -20,4 +20,4 @@ class PolicyNetwork(nn.Module):
         return action_probs
 
     def reset(self):
-        self.apply(init_weights_zero)
+        self.apply(init_weights_gaussian)

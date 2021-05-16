@@ -12,6 +12,7 @@ class SimpleBandit(gym.Env):
         self.end_states = (self.num_states - 1,)
         self.state_transition = torch.vstack(self.num_actions * [torch.arange(start=1, end=self.num_states)]).T
         self.rewards = torch.full((self.num_states, self.num_actions), fill_value=0.)
+        self.reward_range = (0, 1)
 
         self.env_state = {
             'observation': torch.tensor([self.start_state]),
@@ -27,7 +28,7 @@ class SimpleBandit(gym.Env):
     def step(self, action):
         cur_state = self.state['observation'].numpy()[0]
         next_state = self.state_transition[cur_state, action]
-        reward = 1 if action == 1 else self.rewards[cur_state, action]
+        reward = action  # if action == 1 else self.rewards[cur_state, action]
 
         self.timestep += 1
         self.reward = reward if self.timestep < self.max_trajectory_len else -100
@@ -39,7 +40,7 @@ class SimpleBandit(gym.Env):
             'done': self.done
         }
 
-        return self.env_state.values()
+        return [*self.env_state.values(), None]
 
     def reset(self):
         self.env_state = {
@@ -52,7 +53,7 @@ class SimpleBandit(gym.Env):
         self.timestep = 0
         self.done = False
 
-        return None
+        return self.env_state['observation'], None
 
     def get_env_state(self):
         return self.env_state.values()

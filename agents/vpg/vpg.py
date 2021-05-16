@@ -2,23 +2,25 @@ import numpy as np
 import torch
 from torch.distributions import Categorical
 
-from utils.common import one_hot_single_value, one_hot_two_value
+from utils.common import one_hot_single_value
 
 
 class VanillaPolicyGradient:
-    def __init__(self, num_states, num_actions, is_state_continuous):
+    def __init__(self, num_states, num_actions, env_width, is_state_continuous):
         self.num_states = num_states
         self.num_actions = num_actions
         self.is_state_continuous = is_state_continuous
+        self.env_width = env_width
 
     def get_action(self, current_state, policy):
         if not self.is_state_continuous:
-            state = one_hot_single_value(cur_val=current_state, total_vals=self.num_states)
+            state = one_hot_single_value(cur_val=current_state, total_vals=self.num_states, width=self.env_width)
         else:
             state = current_state
-        prob = policy(torch.tensor(state).unsqueeze(0).float())
-        sampler = Categorical(prob)
-        action = sampler.sample()
+        with torch.autograd.set_detect_anomaly(True):
+            prob = policy(torch.tensor(state).unsqueeze(0).float())
+            sampler = Categorical(prob)
+            action = sampler.sample()
 
         return state, action
 
@@ -45,16 +47,17 @@ class VanillaPolicyGradient:
         return sampler.log_prob(actions)
 
     def learn(self, log_prob, rewards, optimizer, gammas):
-        T = len(log_prob)
+        with torch.autograd.set_detect_anomaly(True):
+            T = len(log_prob)
 
-        G = []
-        rewards = np.array(rewards)
+            G = []
+            rewards = np.array(rewards)
 
-        for i in range(T):
-            G += [np.sum(rewards[i:] * (gammas[i].item() ** np.array(range(i, T))))]
+            for i in range(T):
+                G += [np.sum(rewards[i:] * (gammas[i].item() ** np.array(range(i, T))))]
 
-        inner_loss = torch.sum(-log_prob * torch.tensor(G))
+            inner_loss = torch.sum(-log_prob * torch.tensor(G))
 
-        optimizer.zero_grad()
-        inner_loss.backward(retain_graph=True)
-        optimizer.step()
+            optimizer.zero_grad()
+            inner_loss.backward(retain_graph=True)
+            optimizer.step()
